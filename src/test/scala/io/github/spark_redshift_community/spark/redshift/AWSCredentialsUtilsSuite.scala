@@ -136,4 +136,17 @@ class AWSCredentialsUtilsSuite extends FunSuite {
     }
 
   }
+  test("AWSCredentials.load() credentials precedence for s3a:// URIs with bucket name") {
+    val conf = new Configuration(false)
+    conf.set("fs.s3a.bucket.name", "spark-tmp-us-east-1")
+    conf.set("fs.s3a.bucket.spark-tmp-us-east-1.access.key", "CONFID")
+    conf.set("fs.s3a.bucket.spark-tmp-us-east-1.secret.key", "CONFKEY")
+
+    {
+      val creds = AWSCredentialsUtils.load("s3a://bucket/path", conf).getCredentials
+      assert(creds.getAWSAccessKeyId === "CONFID")
+      assert(creds.getAWSSecretKey === "CONFKEY")
+    }
+
+  }
 }

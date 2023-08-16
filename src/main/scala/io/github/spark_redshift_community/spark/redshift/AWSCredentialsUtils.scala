@@ -64,6 +64,22 @@ private[redshift] object AWSCredentialsUtils {
     params.temporaryAWSCredentials.getOrElse(loadFromURI(params.rootTempDir, hadoopConfiguration))
   }
 
+  def loadFromURIWithSchemas3a(s3Bucket: Any, hadoopConfiguration: Configuration): (Option[String], Option[String]) = {
+    val (awsAccessKeyOption, awsSecretKeyOption) = if (s3Bucket != null) {
+      val accessKey = hadoopConfiguration.get(s"fs.s3a.bucket.${s3Bucket}.access.key", null)
+      val secretKey = hadoopConfiguration.get(s"fs.s3a.bucket.${s3Bucket}.secret.key", null)
+      (accessKey, secretKey)
+    } else {
+      (null, null)
+    }
+    if (awsAccessKeyOption != null && awsSecretKeyOption != null) {
+      (Some(awsAccessKeyOption), Some(awsSecretKeyOption))
+    } else {
+      (None, None)
+    }
+  }
+
+
   private def loadFromURI(
       tempPath: String,
       hadoopConfiguration: Configuration): AWSCredentialsProvider = {
@@ -89,6 +105,14 @@ private[redshift] object AWSCredentialsUtils {
             None
           }
         }.orElse {
+          val s3Bucket = hadoopConfiguration.get(s"fs.s3a.bucket.name", null)
+          if (s3Bucket != null) {
+            val (bucketLevelAwsAccessKey, bucketLevelAwsSecretKey) = loadFromURIWithSchemas3a(s3Bucket, hadoopConfiguration)
+            (bucketLevelAwsAccessKey, bucketLevelAwsSecretKey) match {
+              case (Some(awsAccessKey), Some(awsSecretKey)) => return staticCredentialsProvider(new BasicAWSCredentials(awsAccessKey, awsSecretKey))
+              case _ =>
+            }
+          }
           // Next, try to read from configuration
           val accessKeyConfig = if (uriScheme == "s3a") "access.key" else "awsAccessKeyId"
           val secretKeyConfig = if (uriScheme == "s3a") "secret.key" else "awsSecretAccessKey"
